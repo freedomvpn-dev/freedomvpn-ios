@@ -8,7 +8,7 @@ WORK="$ROOT/.deps"
 mkdir -p "$WORK" "$ROOT/Frameworks" "$ROOT/PacketTunnel/Geo"
 
 LIBXRAY_REF="${LIBXRAY_REF:-main}"
-HEV_REF="${HEV_REF:-master}"
+HEV_REF="${HEV_REF:-main}"
 
 # LibXray.xcframework (Xray-core via gomobile; one Go runtime per process).
 if [ ! -d "$ROOT/Frameworks/LibXray.xcframework" ]; then

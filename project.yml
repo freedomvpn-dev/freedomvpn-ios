@@ -1,0 +1,119 @@
+# XcodeGen spec: `xcodegen generate` creates FreedomVPN.xcodeproj (not committed).
+# The two binary frameworks are built by scripts/build-deps.sh into Frameworks/.
+name: FreedomVPN
+options:
+  bundleIdPrefix: com.topfreedom
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  developmentLanguage: ru
+
+settings:
+  base:
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    SWIFT_VERSION: "5.0"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Automatic
+    # Go runtime inside LibXray needs libresolv.
+    OTHER_LDFLAGS: ["$(inherited)", "-lresolv"]
+
+targets:
+  FreedomVPN:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Shared
+    info:
+      path: App/Info.plist
+      properties:
+        CFBundleDisplayName: Freedom VPN
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: LaunchBackground
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait]
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        LSApplicationQueriesSchemes: [tg]
+        CFBundleURLTypes:
+          - CFBundleURLName: com.topfreedom.vpn
+            CFBundleURLSchemes: [freedomvpn]
+    entitlements:
+      path: App/FreedomVPN.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+        com.apple.security.application-groups: [group.com.topfreedom.vpn]
+        keychain-access-groups: ["$(AppIdentifierPrefix)com.topfreedom.vpn"]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.topfreedom.vpn
+        PRODUCT_NAME: FreedomVPN
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+    dependencies:
+      - target: PacketTunnel
+      # Ping of servers runs Xray in the app process too.
+      - framework: Frameworks/LibXray.xcframework
+        embed: false
+
+  PacketTunnel:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PacketTunnel
+        excludes: ["Geo/**", "Geo"]
+      - path: Shared
+      # Folder reference: copied as Geo/ (XRAY_LOCATION_ASSET points there).
+      - path: PacketTunnel/Geo
+        type: folder
+        buildPhase: resources
+    info:
+      path: PacketTunnel/Info.plist
+      properties:
+        CFBundleDisplayName: Freedom VPN Tunnel
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.networkextension.packet-tunnel
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).PacketTunnelProvider
+    entitlements:
+      path: PacketTunnel/PacketTunnel.entitlements
+      properties:
+        com.apple.developer.networking.networkextension: [packet-tunnel-provider]
+        com.apple.security.application-groups: [group.com.topfreedom.vpn]
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.topfreedom.vpn.tunnel
+        PRODUCT_NAME: PacketTunnel
+        SWIFT_OBJC_BRIDGING_HEADER: PacketTunnel/PacketTunnel-Bridging-Header.h
+    dependencies:
+      - framework: Frameworks/LibXray.xcframework
+        embed: false
+      - framework: Frameworks/HevSocks5Tunnel.xcframework
+        embed: false
+
+  # Pure-Swift logic (config patching, subscription parsing, HWID) tested on the macOS runner.
+  FreedomCoreTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+      - path: Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.topfreedom.vpn.tests
+        GENERATE_INFOPLIST_FILE: YES
+
+schemes:
+  FreedomVPN:
+    build:
+      targets:
+        FreedomVPN: all
+    test:
+      targets: [FreedomCoreTests]

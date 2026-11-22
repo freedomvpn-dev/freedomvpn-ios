@@ -1,0 +1,8 @@
+*.xcodeproj/
+Frameworks/
+.deps/
+PacketTunnel/Geo/*.dat
+build/
+DerivedData/
+.DS_Store
+xcuserdata/

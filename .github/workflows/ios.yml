@@ -1,0 +1,63 @@
+name: Build Freedom VPN iOS
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+          cache: false
+
+      # LibXray and hev-socks5-tunnel take ~15 min to build: cache them per week.
+      - name: Week number
+        id: week
+        run: echo "week=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache native frameworks
+        uses: actions/cache@v4
+        with:
+          path: Frameworks
+          key: frameworks-${{ hashFiles('scripts/build-deps.sh') }}-${{ steps.week.outputs.week }}
+
+      - name: Build native dependencies and fetch geo files
+        run: bash scripts/build-deps.sh
+
+      - name: Generate Xcode project
+        run: |
+          brew install xcodegen
+          xcodegen generate
+
+      - name: Unit tests (simulator)
+        run: |
+          DEST=$(xcrun simctl list devices available | grep -m1 -oE 'iPhone [0-9]+[^(]*' | sed 's/ *$//')
+          echo "Simulator: $DEST"
+          xcodebuild test -project FreedomVPN.xcodeproj -scheme FreedomVPN \
+            -destination "platform=iOS Simulator,name=$DEST" \
+            CODE_SIGNING_ALLOWED=NO | tail -n 60
+          exit ${PIPESTATUS[0]}
+
+      - name: Build for device (unsigned)
+        run: |
+          xcodebuild build -project FreedomVPN.xcodeproj -scheme FreedomVPN \
+            -configuration Release -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO | tail -n 60
+          exit ${PIPESTATUS[0]}
